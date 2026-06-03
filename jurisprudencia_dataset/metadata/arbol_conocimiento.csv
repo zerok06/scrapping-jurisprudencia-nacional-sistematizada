@@ -1,0 +1,8 @@
+﻿categoria_id,nivel_1_especialidad,nivel_2_delito_pretension,cantidad_documentos,lista_uuids
+civil_ejecucion_de_garantia_hipotecaria,civil,Ejecución de Garantía Hipotecaria,2,6647ee24-5309-4a4d-8b7c-a439d2f80175;aef380cb-f4d7-4ab8-afb2-5882f8aa5256
+civil_desalojo_por_ocupacion_precaria,civil,Desalojo por Ocupación Precaria,2,836064db-caa1-4d55-9183-26b064d254c1;c7c8fb2a-d7ff-4d40-8a4a-25b7ce73874c
+civil_obligacion_de_dar_suma_de_dinero,civil,Obligación de Dar Suma de Dinero,2,3c2520b4-df73-49b2-bd8f-dc39afd607c5;4787c4ee-c1b4-402c-abf2-2ff1a6ec6c1c
+civil_mejor_derecho_de_propiedad,civil,Mejor Derecho de Propiedad,2,4685b0b6-44f9-4c99-bd9e-46a028cc8f0d;ecdc3800-ed53-462c-b477-ae8ee0cf396c
+civil_reivindicacion,civil,Reivindicación,1,69049752-e199-418a-a807-99a9464ea086
+civil_otorgamiento_de_escritura_publica,civil,Otorgamiento de Escritura Pública,1,b5140183-89dc-4825-867f-65f154a4b7ec
+comercial_anulacion_de_laudo_arbitral,comercial,Anulación de Laudo Arbitral,10,5cbf9c87-47c7-4bab-b670-af966c6a14a8;44c2a6ef-b829-4501-835c-3d342a22018b;383474dd-18e5-4f2f-a755-7546b6c22da9;addf8181-0578-41bf-a671-ad591c84879d;317d2955-80af-45db-8511-ceb5ccaae871;cf3dc9a4-bfba-4ab0-a302-ddd9903e75cb;8ffbdcc1-0c7e-44a4-bcde-09b48354b484;4f29035f-1ede-4cc5-84f5-394dff093a5a;41860388-ea55-478b-9e6c-d0b822218d71;674993c2-b522-4cdf-b8ea-90dfc21f1287
