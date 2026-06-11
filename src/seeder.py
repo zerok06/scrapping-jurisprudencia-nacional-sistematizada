@@ -15,7 +15,10 @@ from config import (
     ESPECIALIDADES,
     ANOS_INTERES,
     NIVEL_CORTE_POR_DEFECTO,
-    TEMP_PAGES_DIR
+    TEMP_PAGES_DIR,
+    PROXY_SERVER,
+    PROXY_USER,
+    PROXY_PASS
 )
 from utils import save_json, clean_string, clean_yaml_field
 
@@ -380,9 +383,18 @@ async def main():
     print("======================================================================")
 
     async with async_playwright() as p:
+        # Configurar proxy si está definido
+        proxy_opts = None
+        if PROXY_SERVER:
+            proxy_opts = {"server": PROXY_SERVER}
+            if PROXY_USER and PROXY_PASS:
+                proxy_opts["username"] = PROXY_USER
+                proxy_opts["password"] = PROXY_PASS
+
         # Lanzar Chromium con argumentos anti-detección
         browser = await p.chromium.launch(
             headless=args.headless,
+            proxy=proxy_opts,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",

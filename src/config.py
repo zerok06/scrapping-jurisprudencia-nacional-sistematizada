@@ -81,8 +81,23 @@ USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:123.0) Gecko/20100101 Firefox/123.0",
 ]
 
-# Lista de proxies (Si está vacía, no se utilizarán proxies. Formato: {"http://": "...", "https://": "..."})
-PROXIES = []  # Ejemplo: [{"http://": "http://user:pass@ip:port", "https://": "http://user:pass@ip:port"}]
+# Configuración de Proxy para Scraper
+PROXY_SERVER = os.getenv("PROXY_SERVER", "").strip()
+PROXY_USER = os.getenv("PROXY_USER", "").strip()
+PROXY_PASS = os.getenv("PROXY_PASS", "").strip()
+
+if PROXY_SERVER:
+    if PROXY_USER and PROXY_PASS:
+        if "://" in PROXY_SERVER:
+            proto, host = PROXY_SERVER.split("://", 1)
+            proxy_url = f"{proto}://{PROXY_USER}:{PROXY_PASS}@{host}"
+        else:
+            proxy_url = f"http://{PROXY_USER}:{PROXY_PASS}@{PROXY_SERVER}"
+    else:
+        proxy_url = PROXY_SERVER
+    PROXIES = [proxy_url]
+else:
+    PROXIES = []
 
 # ==============================================================================
 # CONFIGURACIÓN NLP & OCR
