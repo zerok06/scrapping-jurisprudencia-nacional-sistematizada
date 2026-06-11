@@ -34,62 +34,104 @@ st.markdown("""
         font-family: 'Outfit', sans-serif !important;
     }
     
-    /* Fondo principal con degradado sutil */
+    /* Scrollbars del sistema */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #05070c;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Fondo principal con degradado premium espacial y partículas simuladas */
     .stApp {
-        background: radial-gradient(circle at top right, #0d1527 0%, #070a13 100%);
-        color: #e2e8f0;
+        background: radial-gradient(circle at top right, #0e172a 0%, #05070c 100%);
+        color: #f1f5f9;
     }
     
     /* Barra lateral */
     section[data-testid="stSidebar"] {
-        background-color: #0b0f19 !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        background-color: #060913 !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    section[data-testid="stSidebar"] .stSelectbox {
+        margin-top: 0.5rem;
     }
     
     /* Encabezado principal */
     .main-title {
-        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+        background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #d946ef 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         font-weight: 800;
-        font-size: 2.8rem;
+        font-size: 3rem;
         margin-bottom: 0.1rem;
-        letter-spacing: -0.5px;
+        letter-spacing: -1px;
     }
     
     .subtitle {
         color: #94a3b8;
         font-size: 1.15rem;
         font-weight: 400;
-        margin-bottom: 1.8rem;
+        margin-bottom: 2rem;
     }
     
-    /* Tarjetas de métricas (Glassmorphism) */
+    /* Tarjetas de métricas (Glassmorphism Avanzado) */
     .metric-card {
         background: rgba(15, 23, 42, 0.45);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 16px;
-        padding: 1.25rem;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        padding: 1.5rem 1.25rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         text-align: center;
+        position: relative;
+        overflow: hidden;
     }
     
+    .metric-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #06b6d4, #6366f1);
+        opacity: 0.8;
+    }
+    
+    /* Variaciones de acento por tarjeta */
+    .card-cyan::before { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .card-orange::before { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .card-purple::before { background: linear-gradient(90deg, #a855f7, #ec4899); }
+    .card-emerald::before { background: linear-gradient(90deg, #10b981, #059669); }
+    
     .metric-card:hover {
-        transform: translateY(-4px);
-        border-color: rgba(56, 189, 248, 0.4);
-        box-shadow: 0 12px 40px 0 rgba(56, 189, 248, 0.15);
+        transform: translateY(-6px);
+        border-color: rgba(6, 182, 212, 0.4);
+        box-shadow: 0 15px 35px rgba(6, 182, 212, 0.15);
     }
     
     .metric-val {
-        font-size: 2.3rem;
+        font-size: 2.6rem;
         font-weight: 800;
-        color: #38bdf8;
-        margin: 0.4rem 0;
-        letter-spacing: -1px;
+        margin: 0.3rem 0;
+        letter-spacing: -1.5px;
     }
+    
+    .val-cyan { color: #22d3ee; text-shadow: 0 0 15px rgba(34, 211, 238, 0.2); }
+    .val-orange { color: #fbbf24; text-shadow: 0 0 15px rgba(251, 191, 36, 0.2); }
+    .val-purple { color: #c084fc; text-shadow: 0 0 15px rgba(192, 132, 252, 0.2); }
+    .val-emerald { color: #34d399; text-shadow: 0 0 15px rgba(52, 211, 153, 0.2); }
     
     .metric-label {
         font-size: 0.85rem;
@@ -102,74 +144,209 @@ st.markdown("""
     /* Divisor estilizado */
     .gradient-divider {
         height: 2px;
-        background: linear-gradient(90deg, #38bdf8, #818cf8, transparent);
-        margin: 1.8rem 0;
+        background: linear-gradient(90deg, #06b6d4, #6366f1, transparent);
+        margin: 2.2rem 0;
     }
     
     /* Contenedor del visualizador de documentos markdown */
     .document-box {
-        background-color: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 12px;
-        padding: 1.5rem;
-        max-height: 500px;
+        background-color: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 16px;
+        padding: 1.8rem;
+        max-height: 600px;
         overflow-y: auto;
-        color: #e2e8f0;
-        line-height: 1.6;
+        color: #cbd5e1;
+        line-height: 1.7;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+    
+    .document-box::-webkit-scrollbar {
+        width: 6px;
+    }
+    .document-box::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
     }
     
     /* Ficha técnica */
     .ficha-tecnica {
-        background: rgba(30, 41, 59, 0.25);
+        background: rgba(15, 23, 42, 0.5);
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Estructura de Ventana de Terminal Cibernética */
+    .terminal-window {
+        background: #020617;
+        border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 12px;
-        padding: 1.2rem;
-        border: 1px solid rgba(255, 255, 255, 0.04);
+        box-shadow: 0 15px 45px rgba(0, 0, 0, 0.55);
+        overflow: hidden;
+        margin-top: 1rem;
+    }
+    .terminal-header {
+        background: rgba(15, 23, 42, 0.85);
+        padding: 0.7rem 1.2rem;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        position: relative;
+    }
+    .terminal-dots {
+        display: flex;
+        gap: 6px;
+    }
+    .terminal-dots .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .terminal-dots .red { background-color: #ef4444; }
+    .terminal-dots .yellow { background-color: #f59e0b; }
+    .terminal-dots .green { background-color: #10b981; }
+    
+    .terminal-title {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.75rem;
+        color: #94a3b8;
+        font-family: 'Fira Code', monospace;
+        font-weight: 500;
+        letter-spacing: 0.5px;
     }
     
     /* Consola de logs en vivo */
     .log-console {
-        background-color: #020617;
-        color: #34d399;
+        background-color: transparent !important;
+        border: none !important;
+        color: #10b981 !important; /* Verde hacker */
         font-family: 'Fira Code', 'Courier New', monospace !important;
-        padding: 1.2rem;
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        font-size: 0.85rem;
-        line-height: 1.45;
-        max-height: 380px;
+        padding: 1.2rem !important;
+        font-size: 0.85rem !important;
+        line-height: 1.55 !important;
+        max-height: 400px;
         overflow-y: auto;
         white-space: pre-wrap;
-        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+        margin: 0 !important;
+        text-shadow: 0 0 4px rgba(16, 185, 129, 0.15);
     }
     
-    /* Botones de control */
-    div.stButton > button {
+    .log-console::-webkit-scrollbar {
+        width: 6px;
+    }
+    .log-console::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+    }
+    
+    /* Personalización de Inputs de Streamlit */
+    div[data-baseweb="select"] > div {
+        background-color: rgba(15, 23, 42, 0.4) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 8px !important;
+        color: #f1f5f9 !important;
+    }
+    div[data-baseweb="input"] {
+        background-color: rgba(15, 23, 42, 0.4) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 8px !important;
+    }
+    div[data-baseweb="input"] input {
+        color: #f1f5f9 !important;
+    }
+    
+    /* Botones de control Premium */
+    div.stButton > button, div.stDownloadButton > button {
+        background: linear-gradient(135deg, #06b6d4 0%, #4f46e5 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        padding: 0.55rem 1.4rem !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
-        transition: all 0.2s ease !important;
+        letter-spacing: 0.5px !important;
+        box-shadow: 0 4px 14px rgba(6, 182, 212, 0.2) !important;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+    div.stButton > button:hover, div.stDownloadButton > button:hover {
+        background: linear-gradient(135deg, #0891b2 0%, #4338ca 100%) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(6, 182, 212, 0.4) !important;
+    }
+    div.stButton > button:active, div.stDownloadButton > button:active {
+        transform: translateY(0) !important;
+    }
+    
+    /* Botones con acción crítica (Detener) */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%) !important;
+        box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2) !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%) !important;
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4) !important;
+    }
+    
+    /* Estilización de Tabs de Streamlit */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: rgba(15, 23, 42, 0.35);
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 42px;
+        background-color: transparent;
+        border-radius: 8px;
+        color: #94a3b8;
+        font-weight: 600;
+        border: none;
+        padding: 0 18px;
+        transition: all 0.2s ease;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #e2e8f0;
+        background-color: rgba(255, 255, 255, 0.03);
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        color: #ffffff !important;
+        background-color: rgba(99, 102, 241, 0.2) !important;
+        border: 1px solid rgba(99, 102, 241, 0.3) !important;
+    }
+    .stTabs [data-baseweb="tab-highlight-bar"] {
+        background-color: transparent !important;
     }
     
     /* Status Badge */
     .status-badge {
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
         padding: 0.4rem 0.8rem;
         border-radius: 20px;
-        font-size: 0.85rem;
+        font-size: 0.75rem;
         font-weight: 700;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.8px;
         margin-bottom: 1rem;
+        text-transform: uppercase;
     }
     
     .status-active {
-        background-color: rgba(16, 185, 129, 0.15);
-        color: #10b981;
+        background-color: rgba(16, 185, 129, 0.12);
+        color: #34d399;
         border: 1px solid rgba(16, 185, 129, 0.3);
+        box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
     }
     
     .status-stopped {
-        background-color: rgba(239, 68, 68, 0.15);
-        color: #ef4444;
+        background-color: rgba(239, 68, 68, 0.12);
+        color: #f87171;
         border: 1px solid rgba(239, 68, 68, 0.3);
+        box-shadow: 0 0 15px rgba(239, 68, 68, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -213,6 +390,29 @@ def count_corpus_markdowns():
     if not config.CORPUS_DIR.exists():
         return 0
     return len(list(config.CORPUS_DIR.glob("**/*.md")))
+
+# ==============================================================================
+# AYUDANTE DE ESTILO DE PLOTLY
+# ==============================================================================
+def customize_plotly_layout(fig):
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family='Outfit, sans-serif', size=11, color='#94a3b8'),
+        margin=dict(t=30, l=10, r=10, b=10),
+        xaxis=dict(
+            gridcolor='rgba(255,255,255,0.04)',
+            showgrid=True,
+            linecolor='rgba(255,255,255,0.06)',
+            zeroline=False
+        ),
+        yaxis=dict(
+            gridcolor='rgba(255,255,255,0.04)',
+            showgrid=True,
+            linecolor='rgba(255,255,255,0.06)',
+            zeroline=False
+        ),
+    )
 
 # ==============================================================================
 # OBTENCIÓN Y GESTIÓN DE VERSIONES (RUNS)
@@ -442,9 +642,9 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     pages_seeded = count_temp_pages()
     st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">1. Enlaces Sembrados</div>
-        <div class="metric-val">{pages_seeded}</div>
+    <div class="metric-card card-cyan">
+        <div class="metric-label">🔗 Enlaces Sembrados</div>
+        <div class="metric-val val-cyan">{pages_seeded}</div>
         <div style="font-size: 0.8rem; color:#94a3b8;">Archivos JSON de paginación</div>
     </div>
     """, unsafe_allow_html=True)
@@ -452,9 +652,9 @@ with col1:
 with col2:
     pdf_cached = count_cached_pdfs()
     st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">2. PDFs en Caché</div>
-        <div class="metric-val">{pdf_cached}</div>
+    <div class="metric-card card-orange">
+        <div class="metric-label">📦 PDFs en Caché</div>
+        <div class="metric-val val-orange">{pdf_cached}</div>
         <div style="font-size: 0.8rem; color:#94a3b8;">Archivos listos para OCR</div>
     </div>
     """, unsafe_allow_html=True)
@@ -462,9 +662,9 @@ with col2:
 with col3:
     md_corpus = count_corpus_markdowns()
     st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">3. Corpus Generado</div>
-        <div class="metric-val">{md_corpus}</div>
+    <div class="metric-card card-purple">
+        <div class="metric-label">📝 Corpus Generado</div>
+        <div class="metric-val val-purple">{md_corpus}</div>
         <div style="font-size: 0.8rem; color:#94a3b8;">Archivos Markdown extraídos</div>
     </div>
     """, unsafe_allow_html=True)
@@ -472,9 +672,9 @@ with col3:
 with col4:
     total_resoluciones = len(df_maestro) if not df_maestro.empty else 0
     st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">4. Resoluciones Indexadas</div>
-        <div class="metric-val">{total_resoluciones}</div>
+    <div class="metric-card card-emerald">
+        <div class="metric-label">⚖️ Resoluciones Indexadas</div>
+        <div class="metric-val val-emerald">{total_resoluciones}</div>
         <div style="font-size: 0.8rem; color:#94a3b8;">Registros en maestro_resoluciones.csv</div>
     </div>
     """, unsafe_allow_html=True)
@@ -507,10 +707,11 @@ with tab_stats:
                 y='count',
                 labels={'especialidad': 'Especialidad', 'count': 'Resoluciones'},
                 color='count',
-                color_continuous_scale='blues',
+                color_continuous_scale=['#06b6d4', '#6366f1'],
                 template='plotly_dark'
             )
-            fig_esp.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None)
+            customize_plotly_layout(fig_esp)
+            fig_esp.update_layout(xaxis_title=None, coloraxis_showscale=False)
             st.plotly_chart(fig_esp, use_container_width=True)
             
         with col_charts_2:
@@ -524,8 +725,9 @@ with tab_stats:
                 markers=True,
                 template='plotly_dark'
             )
-            fig_temporal.update_traces(line_color='#38bdf8', marker_color='#818cf8', marker_size=8)
-            fig_temporal.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None)
+            customize_plotly_layout(fig_temporal)
+            fig_temporal.update_traces(line_color='#06b6d4', marker_color='#6366f1', marker_size=8)
+            fig_temporal.update_layout(xaxis_title=None)
             st.plotly_chart(fig_temporal, use_container_width=True)
             
         st.markdown("---")
@@ -538,11 +740,11 @@ with tab_stats:
                 df_maestro['tipo_resolucion'].value_counts().reset_index(),
                 values='count',
                 names='tipo_resolucion',
-                hole=0.45,
-                color_discrete_sequence=px.colors.sequential.Blues_r,
+                hole=0.5,
+                color_discrete_sequence=['#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'],
                 template='plotly_dark'
             )
-            fig_tipo.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+            customize_plotly_layout(fig_tipo)
             st.plotly_chart(fig_tipo, use_container_width=True)
             
         with col_charts_4:
@@ -555,10 +757,11 @@ with tab_stats:
                     path=['nivel_1_especialidad', 'nivel_2_delito_pretension'],
                     values='cantidad_documentos',
                     color='cantidad_documentos',
-                    color_continuous_scale='Sunsetdark',
+                    color_continuous_scale=['#1e1b4b', '#4f46e5', '#06b6d4', '#10b981'],
                     template='plotly_dark'
                 )
-                fig_tree.update_layout(margin=dict(t=10, l=10, r=10, b=10))
+                customize_plotly_layout(fig_tree)
+                fig_tree.update_layout(margin=dict(t=30, l=10, r=10, b=10), coloraxis_showscale=False)
                 st.plotly_chart(fig_tree, use_container_width=True)
 
 # ------------------------------------------------------------------------------
@@ -626,7 +829,7 @@ with tab_explore:
                 # Ficha de metadatos
                 st.markdown(f"""
                 <div class="ficha-tecnica">
-                    <span style="font-weight:700; color:#38bdf8; font-size:1.15rem;">EXP: {selected_record['nro_expediente']}</span><br>
+                    <span style="font-weight:700; color:#06b6d4; font-size:1.15rem;">EXP: {selected_record['nro_expediente']}</span><br>
                     <span style="color:#94a3b8; font-size:0.9rem;">UUID: {selected_record['uuid']}</span>
                     <hr style="border-color: rgba(255,255,255,0.06); margin: 0.8rem 0;">
                     <table style="width:100%; font-size:0.9rem; border-collapse:collapse; color:#cbd5e1;">
@@ -817,13 +1020,38 @@ with tab_control:
                 with open(log_file, "r", encoding="utf-8-sig", errors="ignore") as f:
                     log_lines = f.readlines()
                 
-                last_lines = log_lines[-35:] if len(log_lines) > 35 else log_lines
+                last_lines = log_lines[-40:] if len(log_lines) > 40 else log_lines
                 log_text = "".join(last_lines)
-                st.markdown(f'<pre class="log-console">{log_text}</pre>', unsafe_allow_html=True)
+                
+                st.markdown(f"""
+                <div class="terminal-window">
+                    <div class="terminal-header">
+                        <div class="terminal-dots">
+                            <span class="dot red"></span>
+                            <span class="dot yellow"></span>
+                            <span class="dot green"></span>
+                        </div>
+                        <div class="terminal-title">orchestrator.log</div>
+                    </div>
+                    <pre class="log-console">{log_text}</pre>
+                </div>
+                """, unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"No se pudo leer el archivo de log: {e}")
         else:
-            st.markdown('<pre class="log-console">Esperando primera ejecución... No hay logs disponibles en disco.</pre>', unsafe_allow_html=True)
+            st.markdown("""
+            <div class="terminal-window">
+                <div class="terminal-header">
+                    <div class="terminal-dots">
+                        <span class="dot red"></span>
+                        <span class="dot yellow"></span>
+                        <span class="dot green"></span>
+                    </div>
+                    <div class="terminal-title">orchestrator.log</div>
+                </div>
+                <pre class="log-console">Esperando primera ejecución... No hay logs disponibles en disco.</pre>
+            </div>
+            """, unsafe_allow_html=True)
             
         # Refrescar automático si el scraper está en ejecución
         if running_pid:

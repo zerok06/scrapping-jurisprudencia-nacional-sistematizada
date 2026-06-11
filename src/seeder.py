@@ -383,7 +383,6 @@ async def main():
         # Lanzar Chromium con argumentos anti-detección
         browser = await p.chromium.launch(
             headless=args.headless,
-            channel="chrome",
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",

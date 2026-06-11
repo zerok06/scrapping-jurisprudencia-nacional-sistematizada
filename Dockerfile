@@ -3,6 +3,7 @@ FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
 
 # Evitar prompts interactivos de apt
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_ROOT_USER_ACTION=ignore
 
 # Instalar dependencias del sistema requeridas por OpenCV (usado en PaddleOCR/OCR fallback)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,8 +21,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Instalar navegador Google Chrome para Playwright
-RUN playwright install chrome
+# Los navegadores (Chromium) ya vienen preinstalados en la imagen base de Playwright.
+# Omitimos la descarga externa de Chrome estable para evitar bloqueos y acelerar el build.
 
 # Copiar el resto del código del proyecto
 COPY . .
