@@ -1,4 +1,4 @@
-[2026-06-02 22:17:17] Orquestador iniciado. Ejecutar una vez: True. Intervalo: 12.0 horas.
-[2026-06-02 22:17:17] === INICIANDO RONDA DE EJECUCIÓN DEL PIPELINE ===
-[2026-06-02 22:17:17] Iniciando ejecución de módulo: seeder.py...
-[2026-06-02 22:17:17] Comando: C:\Users\snake\dev\ai\scrapping-jurisprudencia-nacional-sistematizada\.venv\Scripts\python.exe C:\Users\snake\dev\ai\scrapping-jurisprudencia-nacional-sistematizada\src\seeder.py --headless
+[2026-06-07 19:25:25] Orquestador iniciado (PID: 18700). Ejecutar una vez: True. Intervalo: 12.0 horas.
+[2026-06-07 19:25:25] === INICIANDO RONDA DE EJECUCIÓN DEL PIPELINE ===
+[2026-06-07 19:25:25] Iniciando ejecución de módulo: seeder.py...
+[2026-06-07 19:25:25] Comando: C:\Users\snake\dev\ai\scrapping-jurisprudencia-nacional-sistematizada\.venv\Scripts\python.exe C:\Users\snake\dev\ai\scrapping-jurisprudencia-nacional-sistematizada\src\seeder.py --headless -e civil,penal -y 2024,2025,2026

@@ -1,9 +1,14 @@
 import argparse
+import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 from datetime import datetime
+
+# Configuración y utilidades
+from config import SCRAPER_PID_FILE
+from utils import write_scraper_pid
 
 # Reconfigurar codificación de terminal para evitar UnicodeEncodeError en Windows
 if sys.platform == "win32":
@@ -32,28 +37,35 @@ def safe_print(text: str):
             print(text.encode('ascii', errors='ignore').decode('ascii'))
 
 def parse_arguments():
+    # Cargar defaults desde el env
+    default_interval = float(os.getenv("SCRAPING_INTERVAL_HOURS", "12.0"))
+    default_run_once = os.getenv("RUN_ONCE", "False").lower() == "true"
+    default_especialidades = os.getenv("ESPECIALIDADES", "")
+    default_anios = os.getenv("ANIOS", "")
+
     parser = argparse.ArgumentParser(description="Orquestador del Scraper de Jurisprudencia Nacional")
     parser.add_argument(
         "-i", "--interval",
         type=float,
-        default=12.0,
-        help="Intervalo en horas entre rondas de ejecución (por defecto: 12.0)"
+        default=default_interval,
+        help=f"Intervalo en horas entre rondas de ejecución (por defecto: {default_interval})"
     )
     parser.add_argument(
         "--once",
         action="store_true",
-        help="Ejecutar la secuencia una sola vez y salir"
+        default=default_run_once,
+        help=f"Ejecutar la secuencia una sola vez y salir (por defecto: {default_run_once})"
     )
     parser.add_argument(
         "-e", "--especialidades",
         type=str,
-        default="",
+        default=default_especialidades,
         help="Lista de especialidades separadas por comas"
     )
     parser.add_argument(
         "-y", "--anios",
         type=str,
-        default="",
+        default=default_anios,
         help="Lista de años separados por comas"
     )
     return parser.parse_args()
@@ -151,31 +163,43 @@ def main():
         except:
             pass
             
-    log_message(f"Orquestador iniciado. Ejecutar una vez: {args.once}. Intervalo: {args.interval} horas.")
+    # Registrar PID
+    write_scraper_pid(SCRAPER_PID_FILE, os.getpid())
     
-    if args.once:
-        execute_pipeline(args)
-        log_message("Ejecución única completada. Saliendo.")
-        sys.exit(0)
+    try:
+        log_message(f"Orquestador iniciado (PID: {os.getpid()}). Ejecutar una vez: {args.once}. Intervalo: {args.interval} horas.")
         
-    # Bucle continuo
-    interval_seconds = args.interval * 3600
-    while True:
-        try:
+        if args.once:
             execute_pipeline(args)
-        except KeyboardInterrupt:
-            log_message("Orquestador detenido por el usuario.")
-            break
-        except Exception as e:
-            log_message(f"[CRÍTICO] Excepción no controlada en el bucle principal: {e}")
+            log_message("Ejecución única completada. Saliendo.")
+            return
             
-        log_message(f"Esperando {args.interval} horas para la siguiente ronda...")
-        # Espera granular para poder responder a detenciones rápido
-        sleep_step = 10
-        total_slept = 0
-        while total_slept < interval_seconds:
-            time.sleep(sleep_step)
-            total_slept += sleep_step
+        # Bucle continuo
+        interval_seconds = args.interval * 3600
+        while True:
+            try:
+                execute_pipeline(args)
+            except KeyboardInterrupt:
+                log_message("Orquestador detenido por el usuario.")
+                break
+            except Exception as e:
+                log_message(f"[CRÍTICO] Excepción no controlada en el bucle principal: {e}")
+                
+            log_message(f"Esperando {args.interval} horas para la siguiente ronda...")
+            # Espera granular para poder responder a detenciones rápido
+            sleep_step = 10
+            total_slept = 0
+            while total_slept < interval_seconds:
+                time.sleep(sleep_step)
+                total_slept += sleep_step
+    finally:
+        # Limpiar archivo de PID al salir
+        if SCRAPER_PID_FILE.exists():
+            try:
+                SCRAPER_PID_FILE.unlink()
+            except:
+                pass
+        log_message("Orquestador finalizado. PID liberado.")
 
 if __name__ == "__main__":
     main()

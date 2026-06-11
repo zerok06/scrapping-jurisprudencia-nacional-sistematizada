@@ -141,3 +141,120 @@ def append_csv_records(filepath: Path, fieldnames: List[str], records: List[Dict
     except Exception as e:
         print(f"[ERROR] Fallo al agregar registros al CSV {filepath.name}: {e}")
         return 0
+
+def upload_to_gcs(local_path: Path, bucket_name: str, gcs_blob_path: str) -> bool:
+    """
+    Sube un archivo local a un bucket de Google Cloud Storage usando las
+    credenciales por defecto (ADC/WIF).
+    """
+    if not local_path.exists():
+        print(f"[GCS ERROR] El archivo local no existe: {local_path}")
+        return False
+    try:
+        from google.cloud import storage
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(gcs_blob_path)
+        
+        # Subir el archivo
+        blob.upload_from_filename(str(local_path))
+        print(f"[GCS SUCCESS] Subido {local_path.name} -> gs://{bucket_name}/{gcs_blob_path}")
+        return True
+    except Exception as e:
+        print(f"[GCS ERROR] Error al subir {local_path} a GCS (Bucket: {bucket_name}, Ruta: {gcs_blob_path}): {e}")
+        return False
+
+def get_running_scraper_pid(pid_file: Path) -> Optional[int]:
+    """
+    Lee el archivo PID y verifica si el proceso está activo en el sistema operativo.
+    Retorna el PID si está corriendo, o None si no existe o no está activo.
+    """
+    if not pid_file.exists():
+        return None
+    try:
+        with open(pid_file, "r") as f:
+            content = f.read().strip()
+        if not content.isdigit():
+            return None
+        pid = int(content)
+        
+        # Verificar si el proceso con este PID realmente existe y está corriendo
+        import psutil
+        if psutil.pid_exists(pid):
+            proc = psutil.Process(pid)
+            if proc.is_running() and proc.status() != psutil.STATUS_ZOMBIE:
+                return pid
+                
+        # Si el archivo PID existe pero el proceso no está corriendo, limpiamos el archivo pid
+        try:
+            pid_file.unlink()
+        except Exception:
+            pass
+        return None
+    except Exception:
+        return None
+
+def write_scraper_pid(pid_file: Path, pid: int):
+    """
+    Escribir el PID del proceso en el archivo correspondiente.
+    """
+    try:
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(pid_file, "w") as f:
+            f.write(str(pid))
+    except Exception as e:
+        print(f"[ERROR] No se pudo escribir el archivo PID: {e}")
+
+def kill_scraper_process(pid_file: Path) -> bool:
+    """
+    Termina el proceso del orquestador guardado en el archivo PID de forma limpia.
+    Retorna True si se logró detener.
+    """
+    pid = get_running_scraper_pid(pid_file)
+    if not pid:
+        if pid_file.exists():
+            try:
+                pid_file.unlink()
+            except:
+                pass
+        return True
+    
+    try:
+        import psutil
+        process = psutil.Process(pid)
+        # Terminar procesos hijos (ej. navegadores Playwright/Chrome)
+        try:
+            for child in process.children(recursive=True):
+                try:
+                    child.terminate()
+                except:
+                    pass
+        except:
+            pass
+            
+        process.terminate()
+        
+        # Esperar hasta 3 segundos a que se detenga
+        gone, alive = psutil.wait_procs([process], timeout=3)
+        if alive:
+            for a in alive:
+                try:
+                    a.kill()
+                except:
+                    pass
+                    
+        if pid_file.exists():
+            try:
+                pid_file.unlink()
+            except:
+                pass
+        return True
+    except Exception as e:
+        print(f"[ERROR] Error al detener el proceso {pid}: {e}")
+        if pid_file.exists():
+            try:
+                pid_file.unlink()
+            except:
+                pass
+        return False
+

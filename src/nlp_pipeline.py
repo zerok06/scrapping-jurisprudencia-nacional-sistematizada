@@ -13,9 +13,10 @@ from config import (
     CORPUS_DIR,
     MIN_TEXT_LENGTH_FOR_OCR,
     OCR_LANGUAGE,
-    DELETE_PDF_AFTER_PROCESSING
+    DELETE_PDF_AFTER_PROCESSING,
+    GCS_BUCKET_NAME
 )
-from utils import load_json, clean_yaml_field
+from utils import load_json, clean_yaml_field, upload_to_gcs
 
 # Variable global para inicializar PaddleOCR de forma perezosa
 OCR_ENGINE = None
@@ -256,6 +257,11 @@ def process_pdf(pdf_path: Path, metadata: Dict[str, Any], keep_pdf: bool) -> boo
     try:
         with open(markdown_path, "w", encoding="utf-8") as f:
             f.write(markdown_content)
+            
+        # Subir a GCS si está configurado
+        if GCS_BUCKET_NAME:
+            gcs_path = f"corpus_texto/{especialidad}/{anio}/{uuid}.md"
+            upload_to_gcs(markdown_path, GCS_BUCKET_NAME, gcs_path)
             
         # 6. Eliminar PDF si está configurado
         if not keep_pdf:

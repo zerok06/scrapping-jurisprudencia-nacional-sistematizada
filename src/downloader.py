@@ -18,9 +18,10 @@ from config import (
     DOWNLOAD_BACKOFF_FACTOR,
     DOWNLOAD_BACKOFF_MAX,
     USER_AGENTS,
-    PROXIES
+    PROXIES,
+    GCS_BUCKET_NAME
 )
-from utils import load_json
+from utils import load_json, upload_to_gcs
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Descargador Asíncrono de Jurisprudencia por UUID")
@@ -113,6 +114,11 @@ async def download_file(
                         # Escribir el PDF a disco
                         with open(pdf_path, "wb") as f:
                             f.write(content)
+                        
+                        # Subir a GCS si está configurado
+                        if GCS_BUCKET_NAME:
+                            await asyncio.to_thread(upload_to_gcs, pdf_path, GCS_BUCKET_NAME, f"cache_pdf/{uuid}.pdf")
+                            
                         return True
                     else:
                         # La respuesta no es un PDF (podría ser un captcha, error JSF, sesión expirada, etc.)

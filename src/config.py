@@ -1,10 +1,15 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # ==============================================================================
 # CONFIGURACIÓN DE RUTAS Y ESTRUCTURA DE DATASET
 # ==============================================================================
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Cargar variables de entorno desde el archivo .env
+load_dotenv(BASE_DIR / ".env")
+
 DATASET_DIR = BASE_DIR / "jurisprudencia_dataset"
 
 METADATA_DIR = DATASET_DIR / "metadata"
@@ -42,7 +47,11 @@ ESPECIALIDADES = {
 }
 
 # Rango de años de interés
-ANOS_INTERES = [str(anio) for anio in range(2021, 2027)]  # 2021 al 2026
+anos_env = os.getenv("ANIOS")
+if anos_env:
+    ANOS_INTERES = [anio.strip() for anio in anos_env.split(",") if anio.strip()]
+else:
+    ANOS_INTERES = [str(anio) for anio in range(2021, 2027)]  # 2021 al 2026
 
 # Nivel/Corte (1 = Corte Suprema, 2 = Corte Superior)
 NIVEL_CORTE_POR_DEFECTO = "1" 
@@ -50,7 +59,7 @@ NIVEL_CORTE_POR_DEFECTO = "1"
 # ==============================================================================
 # CONFIGURACIÓN DEL DESCARGADOR ASÍNCRONO
 # ==============================================================================
-DOWNLOAD_CONCURRENCY_LIMIT = 5  # Número máximo de descargas simultáneas (semáforo)
+DOWNLOAD_CONCURRENCY_LIMIT = int(os.getenv("DOWNLOAD_CONCURRENCY_LIMIT", "5"))  # Número máximo de descargas simultáneas (semáforo)
 DOWNLOAD_TIMEOUT = 30.0         # Timeout de petición HTTP en segundos
 DOWNLOAD_MAX_RETRIES = 5        # Intentos máximos por archivo
 DOWNLOAD_BACKOFF_FACTOR = 2.0   # Factor exponencial (2s, 4s, 8s, 16s...)
@@ -73,4 +82,15 @@ PROXIES = []  # Ejemplo: [{"http://": "http://user:pass@ip:port", "https://": "h
 # ==============================================================================
 MIN_TEXT_LENGTH_FOR_OCR = 150   # Umbral mínimo de texto para activar fallback OCR
 OCR_LANGUAGE = "es"             # Idioma optimizado para PaddleOCR
-DELETE_PDF_AFTER_PROCESSING = True  # True para VPS con almacenamiento limitado
+DELETE_PDF_AFTER_PROCESSING = os.getenv("DELETE_PDF_AFTER_PROCESSING", "True").lower() == "true"  # True para VPS con almacenamiento limitado
+
+# ==============================================================================
+# CONFIGURACIÓN GOOGLE CLOUD STORAGE Y RASTREO
+# ==============================================================================
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "").strip()
+if not GCS_BUCKET_NAME:
+    GCS_BUCKET_NAME = None
+
+# Archivo PID para control del orquestador desde el dashboard
+SCRAPER_PID_FILE = DATASET_DIR / "scraper.pid"
+

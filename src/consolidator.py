@@ -7,14 +7,16 @@ from typing import Dict, List, Set, Any
 from config import (
     TEMP_PAGES_DIR,
     MAESTRO_RESOLUCIONES_CSV,
-    ARBOL_CONOCIMIENTO_CSV
+    ARBOL_CONOCIMIENTO_CSV,
+    GCS_BUCKET_NAME
 )
 from utils import (
     load_json,
     read_csv_records,
     append_csv_records,
     write_csv_records,
-    clean_string
+    clean_string,
+    upload_to_gcs
 )
 
 def parse_arguments():
@@ -126,6 +128,10 @@ def main():
         key_field="uuid"
     )
     print(f"[CONSOLIDATOR] Nuevos registros agregados a 'maestro_resoluciones.csv': {new_inserts}")
+    
+    # Subir maestro de resoluciones a GCS
+    if GCS_BUCKET_NAME:
+        upload_to_gcs(MAESTRO_RESOLUCIONES_CSV, GCS_BUCKET_NAME, "metadata/maestro_resoluciones.csv")
 
     # 3. Leer el maestro completo para reconstruir el árbol de conocimiento
     full_maestro_records = read_csv_records(MAESTRO_RESOLUCIONES_CSV)
@@ -184,6 +190,10 @@ def main():
     if success:
         print(f"[CONSOLIDATOR] Árbol de conocimiento actualizado con éxito en '{ARBOL_CONOCIMIENTO_CSV.name}'.")
         print(f"[CONSOLIDATOR] Total de categorías conceptuales creadas: {len(knowledge_tree_records)}")
+        
+        # Subir árbol de conocimiento a GCS
+        if GCS_BUCKET_NAME:
+            upload_to_gcs(ARBOL_CONOCIMIENTO_CSV, GCS_BUCKET_NAME, "metadata/arbol_conocimiento.csv")
     else:
         print("[ERROR] Fallo al escribir el árbol de conocimiento.")
 

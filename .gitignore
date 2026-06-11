@@ -2,3 +2,4 @@ data/
 .env
 .venv/
 src/__pycache__
+jurisprudencia_dataset/
