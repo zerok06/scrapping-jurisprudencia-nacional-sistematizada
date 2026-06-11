@@ -258,3 +258,56 @@ def kill_scraper_process(pid_file: Path) -> bool:
                 pass
         return False
 
+def list_gcs_runs(bucket_name: str) -> List[str]:
+    """
+    Lista los prefijos únicos (carpetas de ejecución) dentro de 'runs/' en el bucket de GCS.
+    """
+    try:
+        from google.cloud import storage
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        
+        # Usamos el delimitador "/" para agrupar por directorios
+        blobs = client.list_blobs(bucket, prefix="runs/", delimiter="/")
+        
+        # Para forzar la recuperación de los prefijos, necesitamos iterar o realizar la consulta
+        list(blobs)
+        
+        # Prefixes tiene la forma "runs/run_XXXXX/"
+        run_ids = []
+        if blobs.prefixes:
+            for prefix in blobs.prefixes:
+                # Extraer el run_id
+                parts = [p for p in prefix.split("/") if p]
+                if len(parts) >= 2:
+                    run_ids.append(parts[1])
+        return run_ids
+    except Exception as e:
+        print(f"[GCS ERROR] No se pudieron listar las ejecuciones de GCS: {e}")
+        return []
+
+def download_from_gcs(bucket_name: str, gcs_blob_path: str, local_path: Path) -> bool:
+    """
+    Descarga un archivo desde un bucket de GCS a una ruta local.
+    """
+    try:
+        from google.cloud import storage
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(gcs_blob_path)
+        
+        if not blob.exists():
+            print(f"[GCS WARN] El blob gs://{bucket_name}/{gcs_blob_path} no existe.")
+            return False
+            
+        # Crear directorios locales si no existen
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        blob.download_to_filename(str(local_path))
+        print(f"[GCS SUCCESS] Descargado gs://{bucket_name}/{gcs_blob_path} -> {local_path}")
+        return True
+    except Exception as e:
+        print(f"[GCS ERROR] Error al descargar gs://{bucket_name}/{gcs_blob_path}: {e}")
+        return False
+
+

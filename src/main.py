@@ -42,6 +42,8 @@ def parse_arguments():
     default_run_once = os.getenv("RUN_ONCE", "False").lower() == "true"
     default_especialidades = os.getenv("ESPECIALIDADES", "")
     default_anios = os.getenv("ANIOS", "")
+    default_fecha_inicio = os.getenv("FECHA_INICIO", "")
+    default_fecha_fin = os.getenv("FECHA_FIN", "")
 
     parser = argparse.ArgumentParser(description="Orquestador del Scraper de Jurisprudencia Nacional")
     parser.add_argument(
@@ -67,6 +69,18 @@ def parse_arguments():
         type=str,
         default=default_anios,
         help="Lista de años separados por comas"
+    )
+    parser.add_argument(
+        "--fecha-inicio",
+        type=str,
+        default=default_fecha_inicio,
+        help="Fecha de inicio en formato DD/MM/YYYY"
+    )
+    parser.add_argument(
+        "--fecha-fin",
+        type=str,
+        default=default_fecha_fin,
+        help="Fecha de fin en formato DD/MM/YYYY"
     )
     return parser.parse_args()
 
@@ -124,6 +138,7 @@ def run_module(script_name: str, args_list: list) -> bool:
 
 def execute_pipeline(args):
     log_message("=== INICIANDO RONDA DE EJECUCIÓN DEL PIPELINE ===")
+    log_message(f"Ruta de ejecución activa (ACTIVE_RUN_ID): {os.environ.get('ACTIVE_RUN_ID', 'default')}")
     
     # Módulo A: Seeder
     seeder_args = ["--headless"]
@@ -131,6 +146,10 @@ def execute_pipeline(args):
         seeder_args += ["-e", args.especialidades]
     if args.anios:
         seeder_args += ["-y", args.anios]
+    if args.fecha_inicio:
+        seeder_args += ["--fecha-inicio", args.fecha_inicio]
+    if args.fecha_fin:
+        seeder_args += ["--fecha-fin", args.fecha_fin]
         
     seeder_ok = run_module("seeder.py", seeder_args)
     if not seeder_ok:
@@ -151,7 +170,11 @@ def execute_pipeline(args):
     if not consolidator_ok:
         log_message("[ERROR] Módulo Consolidator falló. El dataset maestro puede no estar actualizado.")
         
-    log_message("=== FINALIZADA RONDA DE EJECUCIÓN DEL PIPELINE ===\n")
+    log_message("=== FINALIZADA RONDA DE EJECUCIÓN DEL PIPELINE ===")
+    
+    # Enviar reporte por correo
+    run_module("reporter.py", [])
+    log_message("=== PIPELINE COMPLETADO TOTALMENTE ===\n")
 
 def main():
     args = parse_arguments()
@@ -170,6 +193,18 @@ def main():
         log_message(f"Orquestador iniciado (PID: {os.getpid()}). Ejecutar una vez: {args.once}. Intervalo: {args.interval} horas.")
         
         if args.once:
+            # Si no hay un RUN_ID establecido, generar uno único basado en timestamp
+            if "ACTIVE_RUN_ID" not in os.environ or os.environ["ACTIVE_RUN_ID"] == "default":
+                run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                os.environ["ACTIVE_RUN_ID"] = run_id
+                
+                # Crear directorios correspondientes importando config locales
+                import config
+                config.ACTIVE_RUN_ID = run_id
+                config.RUN_DIR = config.DATASET_DIR / "runs" / run_id
+                for d in [config.RUN_DIR, config.RUN_DIR / "metadata", config.RUN_DIR / "metadata" / "temp_pages", config.RUN_DIR / "cache_pdf", config.RUN_DIR / "corpus_texto"]:
+                    d.mkdir(parents=True, exist_ok=True)
+            
             execute_pipeline(args)
             log_message("Ejecución única completada. Saliendo.")
             return
@@ -177,6 +212,16 @@ def main():
         # Bucle continuo
         interval_seconds = args.interval * 3600
         while True:
+            # Para cada ronda en bucle continuo, generamos un RUN_ID nuevo
+            run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            os.environ["ACTIVE_RUN_ID"] = run_id
+            
+            import config
+            config.ACTIVE_RUN_ID = run_id
+            config.RUN_DIR = config.DATASET_DIR / "runs" / run_id
+            for d in [config.RUN_DIR, config.RUN_DIR / "metadata", config.RUN_DIR / "metadata" / "temp_pages", config.RUN_DIR / "cache_pdf", config.RUN_DIR / "corpus_texto"]:
+                d.mkdir(parents=True, exist_ok=True)
+                
             try:
                 execute_pipeline(args)
             except KeyboardInterrupt:

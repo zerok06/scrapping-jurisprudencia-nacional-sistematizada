@@ -4,6 +4,7 @@ import math
 import re
 import sys
 from pathlib import Path
+from datetime import datetime
 from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
 
@@ -48,6 +49,18 @@ def parse_arguments():
         "--force",
         action="store_true",
         help="Forzar el raspado de páginas existentes (sobrescribir JSON temporales)"
+    )
+    parser.add_argument(
+        "--fecha-inicio",
+        type=str,
+        default="",
+        help="Fecha de inicio en formato DD/MM/YYYY"
+    )
+    parser.add_argument(
+        "--fecha-fin",
+        type=str,
+        default="",
+        help="Fecha de fin en formato DD/MM/YYYY"
     )
     return parser.parse_args()
 
@@ -102,7 +115,7 @@ def extract_metadata_from_text(text: str, href: str, especialidad_label: str) ->
         "download_url": href
     }
 
-async def scrape_search_results(page, especialidad_name: str, especialidad_val: str, anio: str, force: bool):
+async def scrape_search_results(page, especialidad_name: str, especialidad_val: str, anio: str, force: bool, fecha_inicio=None, fecha_fin=None):
     print(f"\n[SEEDER] Iniciando búsqueda: Especialidad={especialidad_name}, Año={anio}")
     
     # Helper to wait for RichFaces loading panelState
@@ -265,7 +278,19 @@ async def scrape_search_results(page, especialidad_name: str, especialidad_val: 
                     if card_data:
                         record = extract_metadata_from_text(card_data, href, especialidad_name)
                         if record.get("uuid"):
-                            page_records.append(record)
+                            # Filtrar por fecha si se especificó el rango
+                            keep = True
+                            if fecha_inicio or fecha_fin:
+                                try:
+                                    card_date = datetime.strptime(record.get("fecha_resolucion", ""), "%d/%m/%Y")
+                                    if fecha_inicio and card_date < fecha_inicio:
+                                        keep = False
+                                    if fecha_fin and card_date > fecha_fin:
+                                        keep = False
+                                except Exception:
+                                    pass
+                            if keep:
+                                page_records.append(record)
                 except Exception as ex:
                     print(f"[WARN] Error al extraer tarjeta {i} de página {page_num}: {ex}")
             
@@ -318,12 +343,38 @@ async def main():
     args = parse_arguments()
     
     target_especialidades = [e.strip() for e in args.especialidades.split(",") if e.strip()]
-    target_anios = [y.strip() for y in args.anios.split(",") if y.strip()]
     
+    fecha_inicio = None
+    fecha_fin = None
+    
+    if args.fecha_inicio:
+        try:
+            fecha_inicio = datetime.strptime(args.fecha_inicio.strip(), "%d/%m/%Y")
+        except Exception as e:
+            print(f"[ERROR] Formato de fecha_inicio inválido: {args.fecha_inicio}. Debe ser DD/MM/YYYY.")
+            
+    if args.fecha_fin:
+        try:
+            fecha_fin = datetime.strptime(args.fecha_fin.strip(), "%d/%m/%Y")
+        except Exception as e:
+            print(f"[ERROR] Formato de fecha_fin inválido: {args.fecha_fin}. Debe ser DD/MM/YYYY.")
+            
+    # Si hay fechas de inicio/fin, recalcular los años dinámicamente
+    if fecha_inicio or fecha_fin:
+        start_year = fecha_inicio.year if fecha_inicio else 2021
+        end_year = fecha_fin.year if fecha_fin else datetime.now().year
+        target_anios = [str(y) for y in range(start_year, end_year + 1)]
+    else:
+        target_anios = [y.strip() for y in args.anios.split(",") if y.strip()]
+        
     print("======================================================================")
     print("INICIANDO SEMBRADOR DE JURISPRUDENCIA (MÓDULO A)")
     print(f"Especialidades: {target_especialidades}")
-    print(f"Años: {target_anios}")
+    print(f"Años a escanear: {target_anios}")
+    if fecha_inicio:
+        print(f"Rango desde: {args.fecha_inicio}")
+    if fecha_fin:
+        print(f"Rango hasta: {args.fecha_fin}")
     print(f"Modo Headless: {args.headless}")
     print(f"Forzar sobrescritura: {args.force}")
     print("======================================================================")
@@ -368,7 +419,7 @@ async def main():
             
             for anio in target_anios:
                 try:
-                    await scrape_search_results(page, esp_name, esp_val, anio, args.force)
+                    await scrape_search_results(page, esp_name, esp_val, anio, args.force, fecha_inicio, fecha_fin)
                 except Exception as ex:
                     print(f"[ERROR CRÍTICO] Excepción en loop de scraping para {esp_name} - {anio}: {ex}")
                     

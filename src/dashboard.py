@@ -6,26 +6,15 @@ import sys
 import os
 import time
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 
 # Importar configuración y utilidades
-from config import (
-    BASE_DIR,
-    DATASET_DIR,
-    METADATA_DIR,
-    CORPUS_DIR,
-    PDF_CACHE_DIR,
-    TEMP_PAGES_DIR,
-    MAESTRO_RESOLUCIONES_CSV,
-    ARBOL_CONOCIMIENTO_CSV,
-    SCRAPER_PID_FILE,
-    GCS_BUCKET_NAME,
-    ANOS_INTERES,
-    ESPECIALIDADES
-)
+import config
 from utils import (
     get_running_scraper_pid,
-    kill_scraper_process
+    kill_scraper_process,
+    list_gcs_runs,
+    download_from_gcs
 )
 
 # Configuración de página de Streamlit
@@ -186,54 +175,83 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# FUNCIONES DE DATOS Y CONTEO
+# FUNCIONES DE DATOS Y CONTEO (Dinámicas usando referencias a config.*)
 # ==============================================================================
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=3)
 def load_maestro_data():
-    if not MAESTRO_RESOLUCIONES_CSV.exists():
+    if not config.MAESTRO_RESOLUCIONES_CSV.exists():
         return pd.DataFrame()
     try:
-        df = pd.read_csv(MAESTRO_RESOLUCIONES_CSV)
+        df = pd.read_csv(config.MAESTRO_RESOLUCIONES_CSV)
         df['uuid'] = df['uuid'].astype(str)
         return df
     except Exception as e:
         st.error(f"Error al leer maestro_resoluciones.csv: {e}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=3)
 def load_arbol_data():
-    if not ARBOL_CONOCIMIENTO_CSV.exists():
+    if not config.ARBOL_CONOCIMIENTO_CSV.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(ARBOL_CONOCIMIENTO_CSV)
+        return pd.read_csv(config.ARBOL_CONOCIMIENTO_CSV)
     except Exception as e:
         st.error(f"Error al leer arbol_conocimiento.csv: {e}")
         return pd.DataFrame()
 
 def count_temp_pages():
-    if not TEMP_PAGES_DIR.exists():
+    if not config.TEMP_PAGES_DIR.exists():
         return 0
-    return len(list(TEMP_PAGES_DIR.glob("tmp_*.json")))
+    return len(list(config.TEMP_PAGES_DIR.glob("tmp_*.json")))
 
 def count_cached_pdfs():
-    if not PDF_CACHE_DIR.exists():
+    if not config.PDF_CACHE_DIR.exists():
         return 0
-    return len(list(PDF_CACHE_DIR.glob("*.pdf")))
+    return len(list(config.PDF_CACHE_DIR.glob("*.pdf")))
 
 def count_corpus_markdowns():
-    if not CORPUS_DIR.exists():
+    if not config.CORPUS_DIR.exists():
         return 0
-    return len(list(CORPUS_DIR.glob("**/*.md")))
+    return len(list(config.CORPUS_DIR.glob("**/*.md")))
+
+# ==============================================================================
+# OBTENCIÓN Y GESTIÓN DE VERSIONES (RUNS)
+# ==============================================================================
+def get_all_runs():
+    """
+    Lista todos los IDs de ejecuciones encontradas tanto localmente como en GCS.
+    """
+    runs = set()
+    
+    # 1. Escaneo de carpetas locales
+    runs_dir = config.DATASET_DIR / "runs"
+    if runs_dir.exists():
+        for d in runs_dir.iterdir():
+            if d.is_dir() and d.name.startswith("run_"):
+                runs.add(d.name)
+                
+    # 2. Escaneo de prefijos en GCS
+    if config.GCS_BUCKET_NAME:
+        gcs_runs = list_gcs_runs(config.GCS_BUCKET_NAME)
+        for r in gcs_runs:
+            runs.add(r)
+            
+    # Convertir a lista ordenada descendentemente (los más nuevos primero)
+    sorted_runs = sorted(list(runs), reverse=True)
+    if not sorted_runs:
+        sorted_runs = ["default"]
+        
+    return sorted_runs
 
 # ==============================================================================
 # GESTIÓN DEL SUBPROCESO DEL SCRAPER
 # ==============================================================================
-def start_scraper_subprocess(mode="once", interval=12.0, specialties="", years=""):
+def start_scraper_subprocess(mode="once", interval=12.0, specialties="", start_date="", end_date="", active_run_id=""):
     """
     Inicia el orquestador principal (main.py) en un proceso de segundo plano.
-    Asegura desacoplamiento de Streamlit.
+    Pasa la variable de entorno ACTIVE_RUN_ID para guardar los datos en esa versión.
     """
-    script_path = BASE_DIR / "src" / "main.py"
+    script_path = config.BASE_DIR / "src" / "main.py"
     
     cmd = [sys.executable, str(script_path)]
     if mode == "once":
@@ -243,29 +261,34 @@ def start_scraper_subprocess(mode="once", interval=12.0, specialties="", years="
         
     if specialties:
         cmd += ["-e", specialties]
-    if years:
-        cmd += ["-y", years]
+    if start_date:
+        cmd += ["--fecha-inicio", start_date]
+    if end_date:
+        cmd += ["--fecha-fin", end_date]
         
+    # Copiamos el entorno y añadimos el ACTIVE_RUN_ID
+    env = os.environ.copy()
+    env["ACTIVE_RUN_ID"] = active_run_id
+    
     try:
-        # En Windows, start_new_session=True o close_fds=True para desacoplar el proceso de la consola parent
-        # Redirigimos stdout/stderr a DEVNULL porque main.py escribe su log a orchestrator.log
         subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             close_fds=True,
-            start_new_session=True if sys.platform != 'win32' else False
+            start_new_session=True if sys.platform != 'win32' else False,
+            env=env
         )
         return True
     except Exception as e:
         st.error(f"Error al arrancar el scraper en segundo plano: {e}")
         return False
 
-def save_config_to_env(interval: float, run_once: bool, specialties: list, years: list):
+def save_config_to_env(interval: float, run_once: bool, specialties: list, start_date: str, end_date: str):
     """
     Actualiza el archivo .env conservando comentarios y otras variables.
     """
-    env_path = BASE_DIR / ".env"
+    env_path = config.BASE_DIR / ".env"
     
     lines = []
     if env_path.exists():
@@ -276,7 +299,8 @@ def save_config_to_env(interval: float, run_once: bool, specialties: list, years
         "SCRAPING_INTERVAL_HOURS": f"{interval}\n",
         "RUN_ONCE": f"{str(run_once)}\n",
         "ESPECIALIDADES": f"{','.join(specialties)}\n",
-        "ANIOS": f"{','.join(years)}\n"
+        "FECHA_INICIO": f"{start_date}\n",
+        "FECHA_FIN": f"{end_date}\n"
     }
     
     updated_keys = set()
@@ -306,40 +330,81 @@ def save_config_to_env(interval: float, run_once: bool, specialties: list, years
         return False
 
 # ==============================================================================
-# RENDERIZADO DE INTERFAZ PRINCIPAL
-# ==============================================================================
-
-# Encabezado principal
-st.markdown('<div class="main-title">⚖️ Jurisprudencia Nacional</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle"> ML-Ready Corpus & ETL Pipeline Analytics - Poder Judicial del Perú</div>', unsafe_allow_html=True)
-
-# Cargar datasets
-df_maestro = load_maestro_data()
-df_arbol = load_arbol_data()
-
-# ==============================================================================
-# PANEL LATERAL (ESTADO GENERAL & GCP BUCKET INFO)
+# PANEL LATERAL: SELECCIÓN DE EJECUCIÓN (VERSIONAMIENTO)
 # ==============================================================================
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/e/e0/Escudo_nacional_del_Per%C3%BA.svg", width=65)
-    st.markdown("### 🔍 Monitoreo de Pipeline")
-    st.markdown("---")
+    st.markdown("### 🗂️ Historial de Versiones")
     
-    # Comprobar si el scraper está corriendo en el sistema operativo mediante el PID
-    running_pid = get_running_scraper_pid(SCRAPER_PID_FILE)
+    # Obtener todas las versiones disponibles
+    all_versions = get_all_runs()
+    
+    # Inicializar estado de sesión
+    if "active_run_id" not in st.session_state:
+        st.session_state["active_run_id"] = all_versions[0]
+        
+    if st.session_state["active_run_id"] not in all_versions:
+        st.session_state["active_run_id"] = all_versions[0]
+        
+    # Dropdown de selector de versión activa
+    selected_version = st.selectbox(
+        "Ejecución activa a visualizar:",
+        all_versions,
+        index=all_versions.index(st.session_state["active_run_id"])
+    )
+    
+    # Si cambia la versión seleccionada, actualizar la configuración dinámica
+    if selected_version != st.session_state["active_run_id"]:
+        st.session_state["active_run_id"] = selected_version
+        st.rerun()
+        
+    # Cambiar rutas dinámicas de config para la sesión actual
+    run_id = st.session_state["active_run_id"]
+    os.environ["ACTIVE_RUN_ID"] = run_id
+    config.ACTIVE_RUN_ID = run_id
+    config.RUN_DIR = config.DATASET_DIR / "runs" / run_id
+    config.METADATA_DIR = config.RUN_DIR / "metadata"
+    config.CORPUS_DIR = config.RUN_DIR / "corpus_texto"
+    config.TEMP_PAGES_DIR = config.METADATA_DIR / "temp_pages"
+    config.PDF_CACHE_DIR = config.RUN_DIR / "cache_pdf"
+    config.MAESTRO_RESOLUCIONES_CSV = config.METADATA_DIR / "maestro_resoluciones.csv"
+    config.ARBOL_CONOCIMIENTO_CSV = config.METADATA_DIR / "arbol_conocimiento.csv"
+    
+    # Asegurar la existencia local de carpetas
+    for d in [config.RUN_DIR, config.METADATA_DIR, config.CORPUS_DIR, config.TEMP_PAGES_DIR, config.PDF_CACHE_DIR]:
+        d.mkdir(parents=True, exist_ok=True)
+        
+    # Si la versión no tiene archivos CSV locales pero hay GCS configurado, descargarlos en caliente
+    if config.GCS_BUCKET_NAME:
+        if not config.MAESTRO_RESOLUCIONES_CSV.exists():
+            download_from_gcs(
+                config.GCS_BUCKET_NAME, 
+                f"runs/{run_id}/metadata/maestro_resoluciones.csv", 
+                config.MAESTRO_RESOLUCIONES_CSV
+            )
+        if not config.ARBOL_CONOCIMIENTO_CSV.exists():
+            download_from_gcs(
+                config.GCS_BUCKET_NAME, 
+                f"runs/{run_id}/metadata/arbol_conocimiento.csv", 
+                config.ARBOL_CONOCIMIENTO_CSV
+            )
+
+    st.markdown("---")
+    st.markdown("### 🔍 Monitoreo de Scraper")
+    
+    # Monitorear estado de ejecución mediante el archivo PID
+    running_pid = get_running_scraper_pid(config.SCRAPER_PID_FILE)
     
     if running_pid:
         st.markdown(
             f'<div class="status-badge status-active">🟢 EN EJECUCIÓN (PID: {running_pid})</div>', 
             unsafe_allow_html=True
         )
-        if st.button("⏹️ Forzar Parada Inmediata", use_container_width=True):
-            if kill_scraper_process(SCRAPER_PID_FILE):
-                st.toast("Scraper detenido exitosamente.", icon="🛑")
-                time.sleep(0.5)
+        if st.button("⏹️ Detener Extracción", use_container_width=True):
+            if kill_scraper_process(config.SCRAPER_PID_FILE):
+                st.toast("Señal de parada enviada al scraper.", icon="🛑")
+                time.sleep(1.0)
                 st.rerun()
-            else:
-                st.error("No se pudo detener el proceso de forma limpia.")
     else:
         st.markdown(
             '<div class="status-badge status-stopped">🔴 DETENIDO / EN ESPERA</div>', 
@@ -348,19 +413,29 @@ with st.sidebar:
         
     st.markdown("---")
     
-    # Estado de GCS (Google Cloud Storage)
+    # Integración GCS
     st.markdown("#### ☁️ Integración de Cloud Storage")
-    if GCS_BUCKET_NAME:
-        st.success(f"Configurado en Bucket:\n`gs://{GCS_BUCKET_NAME}`")
-        st.caption("Autenticación activa mediante Workload Identity Federation (WIF) / Cuentas de Servicio nativas de GCP.")
+    if config.GCS_BUCKET_NAME:
+        st.success(f"Configurado en:\n`gs://{config.GCS_BUCKET_NAME}`")
+        st.caption("Autenticación activa mediante ADC (WIF/Service Account).")
     else:
-        st.info("Almacenamiento únicamente en disco local. (GCS Bucket no configurado en `.env`)")
-
+        st.info("Almacenamiento únicamente en disco local.")
+        
     st.markdown("---")
-    st.caption("Jurisprudencia Nacional Sistematizada v1.2")
+    st.caption("Jurisprudencia Nacional Sistematizada v1.3")
 
 # ==============================================================================
-# TARJETAS DE KPIs (Sondeo de archivos físicos y de base de datos)
+# CARGAR DATASETS PARA LA VERSIÓN SELECCIONADA
+# ==============================================================================
+df_maestro = load_maestro_data()
+df_arbol = load_arbol_data()
+
+# Encabezado principal
+st.markdown('<div class="main-title">⚖️ Jurisprudencia Nacional</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="subtitle"> ML-Ready Corpus & ETL Analytics — Versión Activa: <b>{run_id}</b></div>', unsafe_allow_html=True)
+
+# ==============================================================================
+# TARJETAS DE KPIs (Sondeo de archivos de la ejecución actual)
 # ==============================================================================
 col1, col2, col3, col4 = st.columns(4)
 
@@ -370,7 +445,7 @@ with col1:
     <div class="metric-card">
         <div class="metric-label">1. Enlaces Sembrados</div>
         <div class="metric-val">{pages_seeded}</div>
-        <div style="font-size: 0.8rem; color:#94a3b8;">Registros en temp_pages/</div>
+        <div style="font-size: 0.8rem; color:#94a3b8;">Archivos JSON de paginación</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -380,7 +455,7 @@ with col2:
     <div class="metric-card">
         <div class="metric-label">2. PDFs en Caché</div>
         <div class="metric-val">{pdf_cached}</div>
-        <div style="font-size: 0.8rem; color:#94a3b8;">Descargas listas para OCR</div>
+        <div style="font-size: 0.8rem; color:#94a3b8;">Archivos listos para OCR</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -390,7 +465,7 @@ with col3:
     <div class="metric-card">
         <div class="metric-label">3. Corpus Generado</div>
         <div class="metric-val">{md_corpus}</div>
-        <div style="font-size: 0.8rem; color:#94a3b8;">Archivos Markdown listos</div>
+        <div style="font-size: 0.8rem; color:#94a3b8;">Archivos Markdown extraídos</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -400,14 +475,14 @@ with col4:
     <div class="metric-card">
         <div class="metric-label">4. Resoluciones Indexadas</div>
         <div class="metric-val">{total_resoluciones}</div>
-        <div style="font-size: 0.8rem; color:#94a3b8;">Registros en Maestro CSV</div>
+        <div style="font-size: 0.8rem; color:#94a3b8;">Registros en maestro_resoluciones.csv</div>
     </div>
     """, unsafe_allow_html=True)
 
 st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
 # ==============================================================================
-# TABS PRINCIPALES DE VISUALIZACIÓN Y CONTROL
+# TABS PRINCIPALES
 # ==============================================================================
 tab_stats, tab_explore, tab_control = st.tabs([
     "📈 Analítica & Volumetría", 
@@ -420,9 +495,8 @@ tab_stats, tab_explore, tab_control = st.tabs([
 # ------------------------------------------------------------------------------
 with tab_stats:
     if df_maestro.empty:
-        st.warning("El maestro de resoluciones está vacío. Utiliza la 'Consola de Control' para iniciar una ronda del scraper.")
+        st.warning(f"⚠️ El maestro de resoluciones está vacío para la versión {run_id}. Usa la 'Consola de Control' para iniciar el scraper.")
     else:
-        # Fila 1 de Gráficos
         col_charts_1, col_charts_2 = st.columns(2)
         
         with col_charts_1:
@@ -431,21 +505,16 @@ with tab_stats:
                 df_maestro['especialidad'].value_counts().reset_index(),
                 x='especialidad',
                 y='count',
-                labels={'especialidad': 'Especialidad', 'count': 'Cant. Resoluciones'},
+                labels={'especialidad': 'Especialidad', 'count': 'Resoluciones'},
                 color='count',
                 color_continuous_scale='blues',
                 template='plotly_dark'
             )
-            fig_esp.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)', 
-                paper_bgcolor='rgba(0,0,0,0)',
-                xaxis_title=None
-            )
+            fig_esp.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None)
             st.plotly_chart(fig_esp, use_container_width=True)
             
         with col_charts_2:
             st.markdown("#### 📅 Distribución Temporal")
-            # Extraer año
             df_maestro['anio'] = df_maestro['fecha_resolucion'].apply(lambda x: str(x)[-4:] if len(str(x)) >= 4 else "Desconocido")
             fig_temporal = px.line(
                 df_maestro['anio'].value_counts().sort_index().reset_index(),
@@ -456,16 +525,11 @@ with tab_stats:
                 template='plotly_dark'
             )
             fig_temporal.update_traces(line_color='#38bdf8', marker_color='#818cf8', marker_size=8)
-            fig_temporal.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)', 
-                paper_bgcolor='rgba(0,0,0,0)',
-                xaxis_title=None
-            )
+            fig_temporal.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None)
             st.plotly_chart(fig_temporal, use_container_width=True)
             
         st.markdown("---")
         
-        # Fila 2: Pie chart de tipo de resoluciones y Treemap de jerarquía conceptual
         col_charts_3, col_charts_4 = st.columns(2)
         
         with col_charts_3:
@@ -475,7 +539,7 @@ with tab_stats:
                 values='count',
                 names='tipo_resolucion',
                 hole=0.45,
-                color_discrete_sequence=px.colors.sequential.Ice_r,
+                color_discrete_sequence=px.colors.sequential.Blues_r,
                 template='plotly_dark'
             )
             fig_tipo.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
@@ -484,7 +548,7 @@ with tab_stats:
         with col_charts_4:
             st.markdown("#### 🌿 Árbol de Jerarquía (Especialidad -> Delito/Pretensión)")
             if df_arbol.empty:
-                st.info("No hay datos cargados para el árbol de conocimiento.")
+                st.info("No hay datos cargados para el árbol de conocimiento en esta ejecución.")
             else:
                 fig_tree = px.treemap(
                     df_arbol,
@@ -498,13 +562,12 @@ with tab_stats:
                 st.plotly_chart(fig_tree, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# TAB 2: EXPLORADOR DE CORPUS (Split View)
+# TAB 2: EXPLORADOR DE CORPUS (Con descarga en caliente desde GCS)
 # ------------------------------------------------------------------------------
 with tab_explore:
     if df_maestro.empty:
         st.warning("El maestro de resoluciones está vacío.")
     else:
-        # Filtros del buscador
         st.markdown("#### 🔍 Filtros de Búsqueda del Corpus")
         col_fil_1, col_fil_2, col_fil_3 = st.columns([1, 1, 2])
         
@@ -513,7 +576,6 @@ with tab_explore:
             filtro_esp = st.selectbox("Especialidad:", esp_lista, key="fil_esp_tab")
             
         with col_fil_2:
-            # Extraer año si no está definido
             if 'anio' not in df_maestro.columns:
                 df_maestro['anio'] = df_maestro['fecha_resolucion'].apply(lambda x: str(x)[-4:] if len(str(x)) >= 4 else "Desconocido")
             anio_lista = ["Todos"] + sorted(df_maestro['anio'].dropna().unique().tolist())
@@ -543,9 +605,7 @@ with tab_explore:
         
         with col_table:
             st.markdown("##### 📄 Expedientes")
-            # Mostrar tabla interactiva que permite selección de filas en Streamlit 1.31+
             display_cols = ['nro_expediente', 'especialidad', 'tipo_resolucion', 'fecha_resolucion', 'delito_pretension']
-            
             selected_row = st.dataframe(
                 df_filtered[display_cols],
                 use_container_width=True,
@@ -561,10 +621,9 @@ with tab_explore:
             selection = selected_row.get("selection")
             if selection and selection.get("rows"):
                 row_idx = selection["rows"][0]
-                # Obtener el registro según el índice filtrado
                 selected_record = df_filtered.iloc[row_idx]
                 
-                # Ficha de metadatos estilizada
+                # Ficha de metadatos
                 st.markdown(f"""
                 <div class="ficha-tecnica">
                     <span style="font-weight:700; color:#38bdf8; font-size:1.15rem;">EXP: {selected_record['nro_expediente']}</span><br>
@@ -582,23 +641,26 @@ with tab_explore:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # Cargar el archivo markdown físico si existe
+                # Ruta del Markdown físico
                 md_rel_path = selected_record['ruta_markdown']
-                md_full_path = DATASET_DIR / md_rel_path
+                md_full_path = config.DATASET_DIR / "runs" / run_id / md_rel_path
+                
+                # Descargar en caliente si no existe localmente pero hay bucket GCS
+                if not md_full_path.exists() and config.GCS_BUCKET_NAME:
+                    with st.spinner("Descargando documento desde GCS..."):
+                        download_from_gcs(config.GCS_BUCKET_NAME, f"runs/{run_id}/{md_rel_path}", md_full_path)
                 
                 if md_full_path.exists():
                     try:
                         with open(md_full_path, "r", encoding="utf-8") as f:
                             md_content = f.read()
                             
-                        # Limpiar YAML front matter del visor para lectura más limpia
                         clean_md = md_content
                         if md_content.startswith("---"):
                             parts = md_content.split("---", 2)
                             if len(parts) >= 3:
                                 clean_md = parts[2].strip()
                                 
-                        # Descargar Markdown
                         st.download_button(
                             label="📥 Descargar Corpus (.md)",
                             data=md_content,
@@ -610,13 +672,12 @@ with tab_explore:
                         st.markdown('<div class="document-box">', unsafe_allow_html=True)
                         st.markdown(clean_md)
                         st.markdown('</div>', unsafe_allow_html=True)
-                        
                     except Exception as e:
-                        st.error(f"Error al abrir el archivo markdown: {e}")
+                        st.error(f"Error al leer el archivo markdown: {e}")
                 else:
-                    st.warning(f"⚠️ El archivo markdown físico aún no se encuentra disponible. (Ruta: `{md_rel_path}`)")
+                    st.warning(f"⚠️ El archivo markdown físico no está disponible en disco ni en GCS.")
             else:
-                st.info("👈 Selecciona una resolución en la tabla para visualizar su contenido e información detallada.")
+                st.info("👈 Selecciona una resolución en la tabla para visualizar su contenido.")
 
 # ------------------------------------------------------------------------------
 # TAB 3: CONSOLA DE CONTROL DEL SCRAPER
@@ -627,30 +688,21 @@ with tab_control:
     with col_control_left:
         st.markdown("#### ⚙️ Control de Operaciones")
         
-        # Formulario o Widget para iniciar Scraper
         if running_pid:
-            st.info(f"El scraper se está ejecutando actualmente en el sistema operativo bajo el PID **{running_pid}**.")
+            st.info(f"El scraper se está ejecutando en segundo plano bajo el PID **{running_pid}**.")
             if st.button("🛑 Detener Ejecución del Scraper", type="primary", use_container_width=True):
-                if kill_scraper_process(SCRAPER_PID_FILE):
-                    st.success("Se envió la señal de detención al proceso del scraper.")
+                if kill_scraper_process(config.SCRAPER_PID_FILE):
+                    st.success("Se envió la señal de detención al proceso.")
                     time.sleep(1.0)
                     st.rerun()
         else:
-            st.markdown("Establece los parámetros y el modo para iniciar el pipeline de extracción.")
+            st.markdown("Establece los parámetros y el rango de fechas para iniciar el scraper en una nueva versión.")
             
-            # Cargar defaults de .env para pre-poblar los campos
-            # (Ya que config.py lee del .env en caliente, podemos usar sus variables cargadas)
-            try:
-                from config import ANOS_INTERES as config_anios
-            except:
-                config_anios = ["2024", "2025", "2026"]
-                
             sel_modo = st.radio(
                 "Modo de ejecución:",
-                ["Ejecución única (Una ronda completa)", "Ejecución programada (Bucle por intervalos)"]
+                ["Ejecución única (Una ronda completa con ID único)", "Ejecución programada (Bucle continuo)"]
             )
             
-            # Cargar configs dinámicas
             sel_intervalo = st.slider(
                 "Intervalo entre rondas (Horas) - Solo para modo programado:",
                 min_value=1.0,
@@ -659,45 +711,86 @@ with tab_control:
                 step=0.5
             )
             
-            # Especialidades y Años multiselect
-            opciones_especialidades = list(ESPECIALIDADES.keys())
+            # Filtro por Rango de Fechas (DatePicker)
+            st.markdown("##### 📅 Rango de Fechas Exacto (Fecha Resolución)")
+            col_date_start, col_date_end = st.columns(2)
+            
+            # Recuperar fechas por defecto del .env/entorno si existen
+            env_start_date_str = os.getenv("FECHA_INICIO", "")
+            env_end_date_str = os.getenv("FECHA_FIN", "")
+            
+            default_start_date = date(2025, 1, 1)
+            default_end_date = date.today()
+            
+            if env_start_date_str:
+                try:
+                    default_start_date = datetime.strptime(env_start_date_str, "%d/%m/%Y").date()
+                except:
+                    pass
+            if env_end_date_str:
+                try:
+                    default_end_date = datetime.strptime(env_end_date_str, "%d/%m/%Y").date()
+                except:
+                    pass
+            
+            with col_date_start:
+                sel_start_date = st.date_input("Fecha Inicio:", default_start_date)
+            with col_date_end:
+                sel_end_date = st.date_input("Fecha Fin:", default_end_date)
+                
+            # Especialidades multiselect
+            opciones_especialidades = list(config.ESPECIALIDADES.keys())
+            
+            # Especialidades preseleccionadas del env
+            env_esp_str = os.getenv("ESPECIALIDADES", "civil,penal")
+            default_esp = [e.strip() for e in env_esp_str.split(",") if e.strip() in opciones_especialidades]
+            if not default_esp:
+                default_esp = ["civil", "penal"]
+                
             sel_especialidades = st.multiselect(
                 "Especialidades a escanear (Vacío = Todas):",
                 opciones_especialidades,
-                default=["civil", "penal"]
-            )
-            
-            sel_anios = st.multiselect(
-                "Años a escanear:",
-                [str(a) for a in range(2020, 2028)],
-                default=config_anios
+                default=default_esp
             )
             
             st.markdown("---")
             col_btn_save, col_btn_run = st.columns(2)
             
+            # Convertir fechas a string DD/MM/YYYY
+            start_date_str = sel_start_date.strftime("%d/%m/%Y")
+            end_date_str = sel_end_date.strftime("%d/%m/%Y")
+            
             with col_btn_save:
-                if st.button("💾 Guardar en .env", use_container_width=True):
+                if st.button("💾 Guardar Config en .env", use_container_width=True):
                     is_once = "Una ronda" in sel_modo
-                    if save_config_to_env(sel_intervalo, is_once, sel_especialidades, sel_anios):
-                        st.toast("Configuración guardada en archivo .env exitosamente.", icon="💾")
+                    if save_config_to_env(sel_intervalo, is_once, sel_especialidades, start_date_str, end_date_str):
+                        st.toast("Configuración guardada en .env.", icon="💾")
                         time.sleep(0.5)
                         st.rerun()
             
             with col_btn_run:
                 if st.button("🚀 Iniciar Extracción", type="primary", use_container_width=True):
                     is_once = "Una ronda" in sel_modo
-                    # Guardamos primero la configuración en .env para que el subproceso la lea por defecto
-                    save_config_to_env(sel_intervalo, is_once, sel_especialidades, sel_anios)
+                    # Guardamos la configuración primero
+                    save_config_to_env(sel_intervalo, is_once, sel_especialidades, start_date_str, end_date_str)
                     
-                    # Convertir especialidades a los strings requeridos
+                    # Generar una carpeta/ID único de ejecución basado en timestamp
+                    new_run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    
+                    # Crear carpetas locales de inmediato
+                    new_run_dir = config.DATASET_DIR / "runs" / new_run_id
+                    for d in [new_run_dir, new_run_dir / "metadata", new_run_dir / "metadata" / "temp_pages", new_run_dir / "cache_pdf", new_run_dir / "corpus_texto"]:
+                        d.mkdir(parents=True, exist_ok=True)
+                        
+                    # Configurar variables del entorno para pasarlas al orquestador
                     esp_args = ",".join(sel_especialidades)
-                    anio_args = ",".join(sel_anios)
-                    
-                    # Arrancar subproceso
                     modo_str = "once" if is_once else "loop"
-                    if start_scraper_subprocess(modo_str, sel_intervalo, esp_args, anio_args):
-                        st.success("Extracción iniciada en segundo plano con éxito.")
+                    
+                    # Guardar ACTIVE_RUN_ID en session state para visualizarla
+                    st.session_state["active_run_id"] = new_run_id
+                    
+                    if start_scraper_subprocess(modo_str, sel_intervalo, esp_args, start_date_str, end_date_str, new_run_id):
+                        st.success(f"Extracción iniciada en versión: {new_run_id}")
                         time.sleep(1.0)
                         st.rerun()
                         
@@ -708,24 +801,23 @@ with tab_control:
         col_logs_1, col_logs_2 = st.columns([3, 1])
         with col_logs_2:
             if st.button("🧹 Limpiar Log", use_container_width=True):
-                log_file = DATASET_DIR / "orchestrator.log"
+                log_file = config.DATASET_DIR / "orchestrator.log"
                 if log_file.exists():
                     try:
                         log_file.unlink()
-                        st.success("Logs limpiados.")
+                        st.success("Logs de consola limpiados.")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")
         
         # Contenedor dinámico de logs
-        log_file = DATASET_DIR / "orchestrator.log"
+        log_file = config.DATASET_DIR / "orchestrator.log"
         if log_file.exists():
             try:
                 with open(log_file, "r", encoding="utf-8-sig", errors="ignore") as f:
                     log_lines = f.readlines()
                 
-                # Mostrar últimas 30 líneas
-                last_lines = log_lines[-30:] if len(log_lines) > 30 else log_lines
+                last_lines = log_lines[-35:] if len(log_lines) > 35 else log_lines
                 log_text = "".join(last_lines)
                 st.markdown(f'<pre class="log-console">{log_text}</pre>', unsafe_allow_html=True)
             except Exception as e:
@@ -735,6 +827,5 @@ with tab_control:
             
         # Refrescar automático si el scraper está en ejecución
         if running_pid:
-            # Rerun periódico sutil para actualizar logs si el proceso está activo
             time.sleep(2.0)
             st.rerun()

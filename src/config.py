@@ -12,17 +12,24 @@ load_dotenv(BASE_DIR / ".env")
 
 DATASET_DIR = BASE_DIR / "jurisprudencia_dataset"
 
-METADATA_DIR = DATASET_DIR / "metadata"
-CORPUS_DIR = DATASET_DIR / "corpus_texto"
+# Variable para identificar la ejecución/versión activa
+ACTIVE_RUN_ID = os.getenv("ACTIVE_RUN_ID", "default").strip()
+if not ACTIVE_RUN_ID:
+    ACTIVE_RUN_ID = "default"
+
+RUN_DIR = DATASET_DIR / "runs" / ACTIVE_RUN_ID
+
+METADATA_DIR = RUN_DIR / "metadata"
+CORPUS_DIR = RUN_DIR / "corpus_texto"
 TEMP_PAGES_DIR = METADATA_DIR / "temp_pages"
-PDF_CACHE_DIR = DATASET_DIR / "cache_pdf"
+PDF_CACHE_DIR = RUN_DIR / "cache_pdf"
 
 # Archivos Maestros
 MAESTRO_RESOLUCIONES_CSV = METADATA_DIR / "maestro_resoluciones.csv"
 ARBOL_CONOCIMIENTO_CSV = METADATA_DIR / "arbol_conocimiento.csv"
 
 # Crear directorios si no existen
-for directory in [DATASET_DIR, METADATA_DIR, CORPUS_DIR, TEMP_PAGES_DIR, PDF_CACHE_DIR]:
+for directory in [DATASET_DIR, RUN_DIR, METADATA_DIR, CORPUS_DIR, TEMP_PAGES_DIR, PDF_CACHE_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # ==============================================================================
