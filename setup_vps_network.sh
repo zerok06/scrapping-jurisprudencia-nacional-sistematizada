@@ -115,6 +115,14 @@ fi
 
 echo ""
 echo -e "${YELLOW}[INFO] Levantando/Reconstruyendo contenedores de Docker...${NC}"
-docker-compose up -d --build
+
+# Detectar comando de docker-compose (v1 o v2)
+if docker compose version >/dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker compose"
+else
+    DOCKER_COMPOSE_CMD="docker-compose"
+fi
+
+$DOCKER_COMPOSE_CMD up -d --build
 echo -e "${GREEN}[ÉXITO] Contenedores actualizados y ejecutándose en segundo plano con la nueva red proxy.${NC}"
 echo "======================================================================"

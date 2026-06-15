@@ -131,7 +131,7 @@ def main():
     print(f"[CONSOLIDATOR] Nuevos registros agregados a 'maestro_resoluciones.csv': {new_inserts}")
     
     # Subir maestro de resoluciones a GCS
-    if GCS_BUCKET_NAME:
+    if GCS_BUCKET_NAME and MAESTRO_RESOLUCIONES_CSV.exists():
         upload_to_gcs(MAESTRO_RESOLUCIONES_CSV, GCS_BUCKET_NAME, f"runs/{ACTIVE_RUN_ID}/metadata/maestro_resoluciones.csv")
 
     # 3. Leer el maestro completo para reconstruir el árbol de conocimiento
