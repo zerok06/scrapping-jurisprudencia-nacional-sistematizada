@@ -21,8 +21,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Los navegadores (Chromium) ya vienen preinstalados en la imagen base de Playwright.
-# Omitimos la descarga externa de Chrome estable para evitar bloqueos y acelerar el build.
+# Instalar el navegador Chromium correspondiente a la versión instalada de Playwright
+RUN playwright install chromium
 
 # Copiar el resto del código del proyecto
 COPY . .
