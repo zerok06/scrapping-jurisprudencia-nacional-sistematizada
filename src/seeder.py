@@ -402,25 +402,27 @@ async def main():
             ]
         )
         
-        # Crear contexto aislado con viewport y user-agent realistas
-        context = await browser.new_context(
-            viewport={"width": 1366, "height": 768},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        )
-        
-        page = await context.new_page()
-        await Stealth().apply_stealth_async(page)  # Aplicar playwright-stealth
-        
-        # Regla de HSTS manual para redirigir peticiones HTTP a HTTPS
-        async def handle_route(route):
-            url = route.request.url
-            if url.startswith("http://jurisprudencia.pj.gob.pe"):
-                new_url = url.replace("http://", "https://")
-                await route.fulfill(status=301, headers={"Location": new_url})
-            else:
-                await route.continue_()
-                
-        await page.route("**/*", handle_route)
+        # Función para inicializar un contexto aislado con viewport y user-agent realistas y stealth
+        async def create_new_page(br):
+            ctx = await br.new_context(
+                viewport={"width": 1366, "height": 768},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            )
+            pg = await ctx.new_page()
+            await Stealth().apply_stealth_async(pg)
+            
+            # Regla de HSTS manual para redirigir peticiones HTTP a HTTPS
+            async def handle_route(route):
+                url = route.request.url
+                if url.startswith("http://jurisprudencia.pj.gob.pe"):
+                    new_url = url.replace("http://", "https://")
+                    await route.fulfill(status=301, headers={"Location": new_url})
+                else:
+                    await route.continue_()
+            await pg.route("**/*", handle_route)
+            return ctx, pg
+
+        context, page = await create_new_page(browser)
         
         for esp_name in target_especialidades:
             if esp_name not in ESPECIALIDADES:
@@ -429,11 +431,31 @@ async def main():
             esp_val = ESPECIALIDADES[esp_name]
             
             for anio in target_anios:
-                try:
-                    await scrape_search_results(page, esp_name, esp_val, anio, args.force, fecha_inicio, fecha_fin)
-                except Exception as ex:
-                    print(f"[ERROR CRÍTICO] Excepción en loop de scraping para {esp_name} - {anio}: {ex}")
-                    
+                max_retries = 3
+                for attempt in range(1, max_retries + 1):
+                    try:
+                        await scrape_search_results(page, esp_name, esp_val, anio, args.force, fecha_inicio, fecha_fin)
+                        break  # Éxito, salir del loop de reintentos
+                    except Exception as ex:
+                        print(f"[WARN] Intento {attempt}/{max_retries} falló para {esp_name} - {anio}: {ex}")
+                        if attempt == max_retries:
+                            print(f"[ERROR CRÍTICO] Todos los {max_retries} intentos fallaron para {esp_name} - {anio}.")
+                        else:
+                            # Re-crear página y contexto para el próximo intento
+                            print("[SEEDER] Re-inicializando navegador/petición debido al error...")
+                            try:
+                                await page.close()
+                                await context.close()
+                            except:
+                                pass
+                            await asyncio.sleep(5)
+                            context, page = await create_new_page(browser)
+                            
+        try:
+            await page.close()
+            await context.close()
+        except:
+            pass
         await browser.close()
         print("\n[SEEDER] Proceso de Sembrador Finalizado.")
 

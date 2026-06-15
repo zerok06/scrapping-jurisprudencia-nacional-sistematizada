@@ -19,7 +19,8 @@ from config import (
     DOWNLOAD_BACKOFF_MAX,
     USER_AGENTS,
     PROXIES,
-    GCS_BUCKET_NAME
+    GCS_BUCKET_NAME,
+    ACTIVE_RUN_ID
 )
 from utils import load_json, upload_to_gcs
 
@@ -117,7 +118,7 @@ async def download_file(
                         
                         # Subir a GCS si está configurado
                         if GCS_BUCKET_NAME:
-                            await asyncio.to_thread(upload_to_gcs, pdf_path, GCS_BUCKET_NAME, f"cache_pdf/{uuid}.pdf")
+                            await asyncio.to_thread(upload_to_gcs, pdf_path, GCS_BUCKET_NAME, f"runs/{ACTIVE_RUN_ID}/cache_pdf/{uuid}.pdf")
                             
                         return True
                     else:

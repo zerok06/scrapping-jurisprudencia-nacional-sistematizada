@@ -14,7 +14,8 @@ from config import (
     MIN_TEXT_LENGTH_FOR_OCR,
     OCR_LANGUAGE,
     DELETE_PDF_AFTER_PROCESSING,
-    GCS_BUCKET_NAME
+    GCS_BUCKET_NAME,
+    ACTIVE_RUN_ID
 )
 from utils import load_json, clean_yaml_field, upload_to_gcs
 
@@ -260,7 +261,7 @@ def process_pdf(pdf_path: Path, metadata: Dict[str, Any], keep_pdf: bool) -> boo
             
         # Subir a GCS si está configurado
         if GCS_BUCKET_NAME:
-            gcs_path = f"corpus_texto/{especialidad}/{anio}/{uuid}.md"
+            gcs_path = f"runs/{ACTIVE_RUN_ID}/corpus_texto/{especialidad}/{anio}/{uuid}.md"
             upload_to_gcs(markdown_path, GCS_BUCKET_NAME, gcs_path)
             
         # 6. Eliminar PDF si está configurado

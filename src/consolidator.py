@@ -8,7 +8,8 @@ from config import (
     TEMP_PAGES_DIR,
     MAESTRO_RESOLUCIONES_CSV,
     ARBOL_CONOCIMIENTO_CSV,
-    GCS_BUCKET_NAME
+    GCS_BUCKET_NAME,
+    ACTIVE_RUN_ID
 )
 from utils import (
     load_json,
@@ -131,7 +132,7 @@ def main():
     
     # Subir maestro de resoluciones a GCS
     if GCS_BUCKET_NAME:
-        upload_to_gcs(MAESTRO_RESOLUCIONES_CSV, GCS_BUCKET_NAME, "metadata/maestro_resoluciones.csv")
+        upload_to_gcs(MAESTRO_RESOLUCIONES_CSV, GCS_BUCKET_NAME, f"runs/{ACTIVE_RUN_ID}/metadata/maestro_resoluciones.csv")
 
     # 3. Leer el maestro completo para reconstruir el árbol de conocimiento
     full_maestro_records = read_csv_records(MAESTRO_RESOLUCIONES_CSV)
@@ -193,7 +194,7 @@ def main():
         
         # Subir árbol de conocimiento a GCS
         if GCS_BUCKET_NAME:
-            upload_to_gcs(ARBOL_CONOCIMIENTO_CSV, GCS_BUCKET_NAME, "metadata/arbol_conocimiento.csv")
+            upload_to_gcs(ARBOL_CONOCIMIENTO_CSV, GCS_BUCKET_NAME, f"runs/{ACTIVE_RUN_ID}/metadata/arbol_conocimiento.csv")
     else:
         print("[ERROR] Fallo al escribir el árbol de conocimiento.")
 
